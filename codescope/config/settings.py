@@ -1,3 +1,16 @@
+from pydantic_settings import BaseSettings
+
+class Settings(BaseSettings):
+    openai_api_key: str
+    openai_model: str = "gpt-4.1-mini"
+    openai_embedding_model: str = "text-embedding-3-large"
+
+    class Config:
+        env_file = ".env"
+
+settings = Settings()
+
+
 INSTRUCTION_TEMPLATES = {
     "java_backend": {
         "role": "你是一个资深的 Java 后端开发工程师",
