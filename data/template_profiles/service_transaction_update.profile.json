@@ -1,0 +1,28 @@
+{
+  "id": "service_transaction_update",
+  "level": "service",
+
+  "solves": [
+    "数据一致性",
+    "并发更新"
+  ],
+
+  "applicable_when": [
+    "operations 包含 更新",
+    "entities 数量 >= 2"
+  ],
+
+  "not_applicable_when": [
+    "单表简单更新",
+    "明确说明无并发"
+  ],
+
+  "dependencies": [
+    "exception_handling",
+    "logging"
+  ],
+
+  "outputs": [
+    "Service 层方法骨架"
+  ]
+}
