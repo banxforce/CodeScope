@@ -66,7 +66,7 @@ def main():
 
     # 3. 调用 Phase 2.5 流水线，生成结构化 Requirement
     requirement = format_requirement(
-        user_input=prompt,
+        prompt=prompt,
         llm_client=llm_client
     )
 

@@ -11,7 +11,7 @@ from codescope.llm.client import LLMClient
 
 
 def format_requirement(
-    user_input: str,
+    prompt: str,
     llm_client: LLMClient
 ) -> Requirement:
     """
@@ -23,7 +23,7 @@ def format_requirement(
     """
 
     # TODO：后续接入 schema 校验
-    response = llm_client.complete(user_input)
+    response = llm_client.complete(prompt)
 
     # TODO：这里先假设 response 是 JSON 字符串
     # Phase 2.5 只要求流程通，不要求完美健壮
