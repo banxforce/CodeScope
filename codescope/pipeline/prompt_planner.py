@@ -1,7 +1,7 @@
 from typing import List
 
 from codescope.domain.requirement import Requirement
-from codescope.domain.intent.intent_analysis import IntentAnalysis
+from codescope.domain.intent_analysis import IntentAnalysis
 from codescope.domain.prompt_plan import PromptPlan
 from codescope.domain.prompt_step import PromptStep
 

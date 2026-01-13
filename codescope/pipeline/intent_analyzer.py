@@ -1,6 +1,6 @@
 from typing import List
 
-from codescope.domain.intent.intent_analysis import IntentAnalysis
+from codescope.domain.intent_analysis import IntentAnalysis
 from codescope.domain.requirement import Requirement
 
 

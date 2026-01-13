@@ -17,6 +17,8 @@ from codescope.llm.client import LLMClient
 from codescope.pipeline.format_requirement import format_requirement
 from codescope.prompt.assembler import build_requirement_formatter_prompt
 from codescope.utils.logger import get_logger
+from codescope.pipeline.intent_analyzer import IntentAnalyzer
+from codescope.pipeline.prompt_planner import PromptPlanner
 
 
 logger = get_logger("codescope.main")
@@ -70,9 +72,27 @@ def main():
         llm_client=llm_client
     )
 
-    # 4. 输出结果（Phase 2.5 的最终产物）
-    logger.info("需求已成功结构化：")
-    logger.info(requirement)
+    # 需求结构化结果
+    print("\n=== Requirement ===")
+    print(requirement)
+
+    # 2. 意图分析
+    analyzer = IntentAnalyzer()
+    intent = analyzer.analyze(requirement)
+
+    print("\n=== IntentAnalysis ===")
+    print(intent)
+
+    # 3. Prompt 规划
+    planner = PromptPlanner()
+    plan = planner.build_plan(requirement, intent)
+
+    print("\n=== PromptPlan ===")
+    print(plan)
+
+    print("\n=== Steps ===")
+    for step in plan.steps:
+        print(f"- {step.step_id}: {step.purpose}")
 
 
 if __name__ == "__main__":

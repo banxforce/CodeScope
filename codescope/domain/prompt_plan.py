@@ -1,3 +1,8 @@
+from dataclasses import dataclass
+from typing import List, Optional
+from codescope.domain.prompt_step import PromptStep
+
+
 @dataclass
 class PromptPlan:
     """
