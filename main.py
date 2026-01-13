@@ -41,7 +41,7 @@ class MockLLMClient(LLMClient):
   "stage": "接口设计",
   "core_intent": "实现会议报名并支持并发安全",
   "entities": ["会议", "报名记录"],
-  "operations": ["创建", "更新"],
+  "operations": ["创建", "更新","设计","分析","评估","重构"],
   "non_functional": ["并发", "幂等"],
   "constraints": ["Java 后端"],
   "implicit_signals": []
