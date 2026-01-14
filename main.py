@@ -1,7 +1,7 @@
 from codescope.config.settings import settings
 from codescope.llm.openai_like import OpenAILikeClient
 from codescope.pipeline.intent_analyzer import LLMIntentAnalyzer
-from codescope.pipeline.prompt_planner import PromptPlanner
+from codescope.pipeline.prompt_planner import DrivenPromptPlannerLLM
 from codescope.pipeline.requirement_parser import RequirementParserLLM
 from codescope.utils.logger import get_logger
 
@@ -11,6 +11,7 @@ logger = get_logger("codescope.main")
 def main():
     logger.info("CodeScope Phase 4 启动")
 
+    # 把用户表的查询性能优化一下，最好快一点
     user_input = input("请输入需求描述：").strip()
     if not user_input:
         logger.warning("用户输入为空，流程终止")
@@ -38,8 +39,8 @@ def main():
     print(intent)
 
     # 4. Prompt 规划（Phase 4 可仍是确定性）
-    planner = PromptPlanner()
-    plan = planner.build_plan(requirement, intent)
+    planner = DrivenPromptPlannerLLM(llm_client)
+    plan = planner.plan(requirement, intent)
 
     print("\n=== PromptPlan ===")
     print(plan)

@@ -1,132 +1,161 @@
-from typing import List
+import json
+from typing import Any, Dict, List
+from dataclasses import asdict
 
 from codescope.domain.requirement import Requirement
 from codescope.domain.intent_analysis import IntentAnalysis
 from codescope.domain.prompt_plan import PromptPlan
 from codescope.domain.prompt_step import PromptStep
+from codescope.prompt.system_templates import PROMPT_PLANNER_SYSTEM_PROMPT_CN
 
-
-
-class PromptPlanner:
+class DrivenPromptPlannerLLM:
     """
-    PromptPlanner 根据 IntentAnalysis 构建 PromptPlan。
+    Phase 4 最终版 Prompt Planner（LLM 驱动）
 
-    设计原则：
-    1. Planner 负责“步骤决策”，不负责 Prompt 内容
-    2. 所有规则应可读、可调试
-    3. 第一版采用规则驱动（Rule-based）
+    职责边界：
+    1. 接收 Requirement + IntentAnalysis
+    2. 调用 LLM 生成 PromptPlan（JSON）
+    3. 将 JSON 解析为 PromptPlan / PromptStep
+    4. 做最小、确定性的工程校验
+
+    明确不做的事情：
+    - 不执行 Prompt
+    - 不解释规划理由
+    - 不兜底生成内容
     """
 
-    def build_plan(
+    def __init__(self, llm):
+        self.llm = llm
+
+    # ==================================================
+    # 对外唯一入口
+    # ==================================================
+    def plan(
         self,
         requirement: Requirement,
         intent: IntentAnalysis
     ) -> PromptPlan:
         """
-        构建 PromptPlan（Prompt 执行蓝图）。
+        基于 Requirement + IntentAnalysis 生成 PromptPlan
+        """
+
+        system_prompt = PROMPT_PLANNER_SYSTEM_PROMPT_CN
+        user_prompt = self._build_user_prompt(requirement, intent)
+
+        raw_output = self.llm.complete(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt
+        )
+
+        plan_dict = self._parse_llm_output(raw_output)
+        plan = self._dict_to_prompt_plan(plan_dict)
+
+        self._validate_plan(plan)
+
+        return plan
+
+    # ==================================================
+    # Prompt 构造
+    # ==================================================
+    def _build_user_prompt(
+        self,
+        requirement: Requirement,
+        intent: IntentAnalysis
+    ) -> str:
+        """
+        将结构化对象转为 Planner 视角的上下文输入
+        """
+
+        return f"""
+【Requirement】
+{asdict(requirement)}
+
+【IntentAnalysis】
+{asdict(intent)}
+
+请严格按照系统指令，生成 PromptPlan（JSON 格式）。
+"""
+
+    # ==================================================
+    # LLM 输出解析
+    # ==================================================
+    def _parse_llm_output(self, raw_text: str) -> Dict[str, Any]:
+        """
+        将 LLM 返回内容解析为 dict
+
+        约定：
+        - LLM 必须返回合法 JSON
+        - 不允许 Markdown 包裹
+        """
+
+        try:
+            return json.loads(raw_text)
+        except json.JSONDecodeError as e:
+            raise ValueError(
+                "LLM 返回内容不是合法 JSON，无法解析为 PromptPlan\n"
+                f"Error: {e}\n"
+                f"Raw Output:\n{raw_text}"
+            )
+
+    # ==================================================
+    # dict → PromptPlan
+    # ==================================================
+    def _dict_to_prompt_plan(self, data: Dict[str, Any]) -> PromptPlan:
+        """
+        将 dict 转换为 PromptPlan 对象
         """
 
         steps: List[PromptStep] = []
 
-        # 1. 高复杂度 design 任务 → 先领域建模
-        if intent.primary_intent == "design" and intent.is_complex():
-            steps.append(self._build_domain_model_step())
-
-        # 2. 主生成 / 设计步骤
-        if intent.primary_intent in ("generate", "design"):
-            steps.append(self._build_generation_step(intent))
-
-        # 3. 如果存在 review / 风险 → 加评审步骤
-        if "review" in intent.secondary_intents or intent.risks:
-            steps.append(self._build_review_step())
+        for step_data in data.get("steps", []):
+            step = PromptStep(
+                step_id=step_data["step_id"],
+                purpose=step_data["purpose"],
+                prompt_ref=step_data["prompt_ref"],
+                input_requirements=step_data.get("input_requirements", []),
+                output_type=step_data["output_type"],
+                constraints=step_data.get("constraints", []),
+                optional=step_data.get("optional", False)
+            )
+            steps.append(step)
 
         return PromptPlan(
-            plan_id=self._generate_plan_id(requirement),
-            intent_summary=self._build_intent_summary(intent),
+            plan_id=data["plan_id"],
+            intent_summary=data["intent_summary"],
             steps=steps,
-            execution_strategy="sequential",
-            fallback_strategy="fallback_to_single_prompt"
+            execution_strategy=data.get("execution_strategy", "sequential"),
+            fallback_strategy=data.get("fallback_strategy")
         )
 
-    # =========================
-    # Step Builder Methods
-    # =========================
-
-    def _build_domain_model_step(self) -> PromptStep:
+    # ==================================================
+    # Phase 4 级别校验（最小但严格）
+    # ==================================================
+    def _validate_plan(self, plan: PromptPlan):
         """
-        构建领域建模步骤。
-        """
-
-        return PromptStep(
-            step_id="step-domain-model",
-            purpose="抽象业务领域模型，为后续设计提供语义基础",
-            prompt_ref="domain_model_extraction_prompt",
-            input_requirements=["Requirement"],
-            output_type="DomainModel",
-            constraints=[
-                "不生成任何技术实现",
-                "只描述业务实体及其关系"
-            ]
-        )
-
-    def _build_generation_step(self, intent: IntentAnalysis) -> PromptStep:
-        """
-        构建核心生成 / 设计步骤。
+        Phase 4 的工程底线校验：
+        - Planner 产物必须是确定、可执行、可回放的
         """
 
-        return PromptStep(
-            step_id="step-generate",
-            purpose=f"完成核心 {intent.primary_intent} 任务",
-            prompt_ref="structure_generation_prompt",
-            input_requirements=[
-                "DomainModel" if intent.is_complex() else "Requirement"
-            ],
-            output_type="PrimaryResult",
-            constraints=[
-                "输出应结构化",
-                "明确设计或生成理由"
-            ]
-        )
+        if not plan.steps:
+            raise ValueError("PromptPlan 至少必须包含一个 PromptStep")
 
-    def _build_review_step(self) -> PromptStep:
-        """
-        构建评审 / 风险分析步骤。
-        """
+        if plan.execution_strategy != "sequential":
+            raise ValueError("Phase 4 仅支持 sequential 执行策略")
 
-        return PromptStep(
-            step_id="step-review",
-            purpose="对生成结果进行工程评审与风险分析",
-            prompt_ref="result_review_prompt",
-            input_requirements=["PrimaryResult"],
-            output_type="ReviewNotes",
-            constraints=[
-                "指出潜在问题",
-                "给出改进建议"
-            ],
-            optional=True
-        )
+        step_ids = set()
+        previous_outputs = {"Requirement"}
 
-    # =========================
-    # Helper Methods
-    # =========================
+        for step in plan.steps:
+            # step_id 唯一性
+            if step.step_id in step_ids:
+                raise ValueError(f"检测到重复的 step_id: {step.step_id}")
+            step_ids.add(step.step_id)
 
-    def _generate_plan_id(self, requirement: Requirement) -> str:
-        """
-        生成 Plan 的唯一标识。
-        """
+            # 输入必须来自 Requirement 或前序输出
+            for inp in step.input_requirements:
+                if inp not in previous_outputs:
+                    raise ValueError(
+                        f"Step {step.step_id} 使用了非法 input: {inp}"
+                    )
 
-        return f"plan-{hash(requirement.core_intent) & 0xffff}"
-
-    def _build_intent_summary(self, intent: IntentAnalysis) -> str:
-        """
-        生成人类可读的计划摘要。
-        """
-
-        parts = [f"主意图：{intent.primary_intent}"]
-
-        if intent.secondary_intents:
-            parts.append(f"辅助意图：{', '.join(intent.secondary_intents)}")
-
-        parts.append(f"复杂度：{intent.complexity_level}")
-
-        return "；".join(parts)
+            previous_outputs.add(step.output_type)

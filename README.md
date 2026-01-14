@@ -1,16 +1,45 @@
-## Phase 4
+## Phase 4 更新内容
 
-### Phase 4 Goal（建议版本）
+### Phase 4 Goal
 
-> Phase 4 aims to integrate LLM into the core semantic pipeline, enabling:
-> - LLM-driven intent analysis
-> - Structured requirement decomposition
-> - Deterministic, reviewable execution planning
-> - Without yet executing retrieval or final answer generation.
+> Phase 4 的主要目标是将 LLM 引入 CodeScope 核心语义流水线，实现：
+> - **LLM 驱动的意图分析**：Requirement → IntentAnalysis  
+> - **结构化需求拆解**：Requirement → PromptPlan  
+> - **可回放、可审计的执行规划**：生成 PromptStep 列表  
+> - **保持 deterministic**，暂不执行检索或生成最终答案  
+> 本阶段重点是 **规划与结构化**，而非执行或检索。
 
 ---
 
-### warning 的判定语义
+### 核心组件
+
+#### 1. RequirementParserLLM
+
+- 将用户输入的需求文本转换为 `Requirement` 对象  
+- 提取字段：
+  - domain, stage, core_intent, entities, operations  
+  - non_functional, constraints, implicit_signals  
+- 支持附加字段（Phase 4 可选）：
+  - confidence, warnings, assumptions  
+- 输出示例：
+
+```python
+Requirement(
+    domain='用户管理',
+    stage=None,
+    core_intent='优化用户表查询性能',
+    entities=['用户表', '查询性能'],
+    operations=['refactor'],
+    non_functional=['性能'],
+    constraints=[],
+    implicit_signals=['对速度有较高期望'],
+    confidence=0.75,
+    warnings=['AMBIGUOUS_SCOPE', 'NON_FUNCTIONAL_UNCLEAR'],
+    assumptions=['用户表存在于某个数据库系统中', '存在需要优化的具体查询']
+)
+````
+
+##### Warning 判定语义
 
 | Warning                   | 触发语义                   |
 | ------------------------- | ---------------------- |
@@ -27,111 +56,83 @@
 | STAGE_UNCERTAIN           | 需求所处阶段（设计/开发/排错等）不清    |
 | IMPLICIT_ASSUMPTION_HEAVY | 依赖多个未明说的前提假设           |
 
-
-## README.md（Phase 3 更新内容）
-
-### Phase 3：Intent Reasoning & Prompt Planning ✅
-
-Phase 3 的目标是让 CodeScope 从「基于模板生成指令」升级为
-**「具备意图理解、任务拆解与指令规划能力的工程化系统」**。
-
-本阶段不接入 LLM，专注于**结构正确性、可解释性与可扩展性**。
-
 ---
 
-### 🎯 Phase 3 解决了什么问题？
+#### 2. IntentAnalyzerLLM
 
-在 Phase 2 中，系统已经能够将用户输入结构化为 `Requirement`，并基于模板生成指令。
-但仍存在以下限制：
+* 基于 Requirement 生成 `IntentAnalysis`
+* 字段：
 
-* Prompt 选择不可解释
-* 复杂任务只能用单 Prompt 硬扛
-* 系统“为什么这样做”无法被记录或回放
+  * primary_intent, secondary_intents, complexity_level
+  * key_decisions, risks, assumptions
+* 输出严格对应数据模型，无 Prompt 或生成细节
+* 示例：
 
-Phase 3 引入 **意图推理层与规划层**，解决以上问题。
-
----
-
-### 🧠 核心能力
-
-#### 1. Intent Analysis（意图分析）
-
-系统会基于 `Requirement` 推断：
-
-* 主意图（design / generate / analyze / review）
-* 隐含意图（风险分析、约束检查等）
-* 任务复杂度（low / medium / high）
-* 关键决策点与潜在风险
-* 默认前提假设
-
-对应核心类：
-
-```
-codescope/domain/
-├── intent_analysis.py
-└── intent_analyzer.py
+```python
+IntentAnalysis(
+    primary_intent='review',
+    secondary_intents=['refactor'],
+    complexity_level='medium',
+    key_decisions=[
+        '是否需要评估当前查询性能的基准',
+        '是否需要在数据一致性与查询速度之间进行权衡',
+        '是否考虑优化对现有业务逻辑的影响'
+    ],
+    risks=[
+        '优化范围不明确，可能导致工作边界不清',
+        '非功能性要求（性能）的具体目标不清晰，难以衡量优化效果'
+    ],
+    assumptions=['用户表存在于某个数据库系统中', '存在需要优化的具体查询']
+)
 ```
 
 ---
 
-#### 2. Prompt Planning（指令规划）
+#### 3. DrivenPromptPlannerLLM
 
-系统不再“直接生成 Prompt”，而是先生成 **PromptPlan（执行蓝图）**：
+* 将 Requirement + IntentAnalysis → PromptPlan
+* PromptPlan 由若干 PromptStep 组成，每步包含：
 
-* 明确需要多少步骤
-* 每一步的目的与职责
-* 步骤之间的输入 / 输出关系
-* 是否需要评审或风险分析步骤
+  * step_id, purpose, prompt_ref, input_requirements
+  * output_type, constraints, optional
+* 支持 JSON 输出与校验，不使用 eval
+* 执行策略：`sequential`
+* 严格遵守字段规范与复杂度规则
 
-对应核心类：
+#### 系统提示词
 
-```
-codescope/domain/
-├── prompt_plan.py
-└── prompt_planner.py
-```
+* `REQUIREMENT_SYSTEM_PROMPT`：指导 RequirementParserLLM
+* `INTENT_ANALYSIS_SYSTEM_PROMPT`：指导 IntentAnalyzerLLM
+* `PROMPT_PLANNER_SYSTEM_PROMPT_CN`：指导 DrivenPromptPlannerLLM
+
+> 所有 LLM 模块仅输出结构化 JSON，不生成解释或 Markdown
 
 ---
 
-### 🔁 Phase 3 Pipeline
+### Phase 4 流程概览
 
 ```text
-Requirement
-   ↓
-IntentAnalyzer
-   ↓
-IntentAnalysis
-   ↓
-PromptPlanner
-   ↓
-PromptPlan（可解释、可调试、可回放）
+用户输入文本
+        │
+        ▼
+RequirementParserLLM
+        │
+        ▼
+Requirement (结构化)
+        │
+        ▼
+IntentAnalyzerLLM
+        │
+        ▼
+IntentAnalysis (结构化)
+        │
+        ▼
+DrivenPromptPlannerLLM
+        │
+        ▼
+PromptPlan (结构化蓝图)
 ```
 
-当前阶段：
-
-* 使用规则驱动（if / else）
-* 不依赖 LLM
-* 所有中间结果均可打印与审查
-
----
-
-### ✅ Phase 3 完成标准
-
-* [x] Prompt 生成前具备明确的意图分析结果
-* [x] 支持多 Prompt 步骤规划（Prompt Pipeline）
-* [x] Prompt 不再是字符串，而是有职责的 Step
-* [x] 系统行为可解释、可测试、可扩展
-
-Phase 3 的交付重点是 **系统结构与决策能力**，而非智能程度。
-
----
-
-### 🚀 下一阶段（Phase 4 预告）
-
-Phase 4 将在 Phase 3 的稳定结构之上，引入 LLM，用于：
-
-* 增强意图分析准确性
-* 辅助 Prompt 规划决策
-* 在不破坏可控性的前提下提升智能程度
+> 注意：Phase 4 不执行最终 Prompt，也不进行 RAG 检索或结果生成。
 
 ---
