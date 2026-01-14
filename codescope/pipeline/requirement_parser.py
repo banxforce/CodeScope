@@ -4,7 +4,7 @@ from typing import Any, Dict
 
 from codescope.domain.requirement import Requirement
 from codescope.llm.client import LLMClient
-from codescope.prompt.system_templates import REQUIREMENT_SYSTEM_PROMPT_CN, REQUIREMENT_SYSTEM_PROMPT_EN
+from codescope.prompt.system_templates import REQUIREMENT_SYSTEM_PROMPT_CN
 
 logger = logging.getLogger(__name__)
 

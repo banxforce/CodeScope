@@ -1,11 +1,12 @@
 from codescope.config.settings import settings
 from codescope.llm.openai_like import OpenAILikeClient
-from codescope.pipeline.intent_analyzer import IntentAnalyzer
+from codescope.pipeline.intent_analyzer import LLMIntentAnalyzer
 from codescope.pipeline.prompt_planner import PromptPlanner
 from codescope.pipeline.requirement_parser import RequirementParserLLM
 from codescope.utils.logger import get_logger
 
 logger = get_logger("codescope.main")
+
 
 def main():
     logger.info("CodeScope Phase 4 启动")
@@ -30,7 +31,7 @@ def main():
     print(requirement)
 
     # 3. Intent 分析（仍可先用规则 / 半 LLM）
-    analyzer = IntentAnalyzer()
+    analyzer = LLMIntentAnalyzer(llm_client)
     intent = analyzer.analyze(requirement)
 
     print("\n=== IntentAnalysis ===")

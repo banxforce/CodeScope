@@ -1,170 +1,74 @@
 from typing import List
-
 from codescope.domain.intent_analysis import IntentAnalysis
 from codescope.domain.requirement import Requirement
+from codescope.prompt.system_templates import INTENT_ANALYSIS_SYSTEM_PROMPT_CN
+from codescope.llm.client import LLMClient
+import json
+
+"""
+基于 LLM 的 IntentAnalyzer（Phase 4）。
+
+特点：
+- 输入仍然是 Requirement（结构化）
+- 输出 IntentAnalysis（结构不变）
+- 通过 Prompt 显式约束分析逻辑
+"""
 
 
-class IntentAnalyzer:
-    """
-    IntentAnalyzer 用于从 Requirement 中推断用户的真实意图。
+class LLMIntentAnalyzer:
 
-    当前版本特点：
-    - 基于规则与约定（Rule-based）
-    - 行为可预测、可调试
-    - 适合作为 Phase 3 的第一版实现
-
-    后续可演进方向：
-    - 引入 LLM 进行意图分类与复杂度评估
-    - 人工规则 + LLM 结果融合
-    """
+    def __init__(self, llm: LLMClient):
+        self.llm = llm
 
     def analyze(self, requirement: Requirement) -> IntentAnalysis:
-        """
-        从 Requirement 推断 IntentAnalysis。
+        prompt = self._build_prompt(requirement)
+        output = self.llm.complete(
+            system_prompt=INTENT_ANALYSIS_SYSTEM_PROMPT_CN,
+            user_prompt=prompt,
+            temperature=0.0,
+        )
+        try:
+            return self._parse_output(output)
+        except Exception as e:
+            logger.warning("IntentAnalysis返回解析失败，请重试一次: %s", e)
 
-        :param requirement: 已格式化的用户需求
-        :return: IntentAnalysis
-        """
+            # 二次尝试：强制 JSON 修复
+            retry_output = self.llm.complete(
+                system_prompt=INTENT_ANALYSIS_SYSTEM_PROMPT_CN
+                              + "\n\n之前的输出是无效的JSON。"
+                                "请只输出一个严格遵守规则的有效JSON对象。",
+                user_prompt=text,
+                temperature=0.0,
+            )
 
-        primary_intent = self._detect_primary_intent(requirement)
-        secondary_intents = self._detect_secondary_intents(requirement)
-        complexity_level = self._assess_complexity(requirement, secondary_intents)
-        key_decisions = self._extract_key_decisions(requirement, primary_intent)
-        risks = self._identify_risks(requirement, primary_intent)
-        assumptions = self._build_assumptions(requirement)
+            return self._parse_output(retry_output)
+
+    # User Prompt（Requirement 注入）
+    def _build_prompt(self, requirement: Requirement) -> str:
+        return f"""
+    输入 Requirement 如下：
+
+    {requirement.to_json()}
+
+    请输出一个 IntentAnalysis JSON，字段必须且仅允许包含：
+
+    - primary_intent
+    - secondary_intents
+    - complexity_level
+    - key_decisions
+    - risks
+    - assumptions
+    """
+
+    # 输出解析（强校验）
+    def _parse_output(self, output: str) -> IntentAnalysis:
+        data = json.loads(output)
 
         return IntentAnalysis(
-            primary_intent=primary_intent,
-            secondary_intents=secondary_intents,
-            complexity_level=complexity_level,
-            key_decisions=key_decisions,
-            risks=risks,
-            assumptions=assumptions,
+            primary_intent=data["primary_intent"],
+            secondary_intents=data.get("secondary_intents", []),
+            complexity_level=data["complexity_level"],
+            key_decisions=data.get("key_decisions", []),
+            risks=data.get("risks", []),
+            assumptions=data.get("assumptions", []),
         )
-
-    # =========================
-    # 以下为内部规则方法
-    # =========================
-
-    def _detect_primary_intent(self, requirement: Requirement) -> str:
-        """
-        判断主意图类型。
-
-        优先级说明：
-        - design > generate > analyze > review
-        """
-
-        ops = set(requirement.operations)
-
-        if "设计" in ops or "design" in ops:
-            return "design"
-        if "生成" in ops or "generate" in ops:
-            return "generate"
-        if "分析" in ops or "analyze" in ops:
-            return "analyze"
-        if "评审" in ops or "review" in ops:
-            return "review"
-
-        # 默认兜底
-        return "generate"
-
-    def _detect_secondary_intents(self, requirement: Requirement) -> List[str]:
-        """
-        检测隐含或辅助意图。
-        """
-
-        secondary = []
-
-        ops = set(requirement.operations)
-        nfrs = set(requirement.non_functional)
-
-        if "评估" in ops or "风险" in ops:
-            secondary.append("risk_analysis")
-
-        if nfrs:
-            secondary.append("constraint_check")
-
-        if "重构" in ops or "refactor" in ops:
-            secondary.append("refactor")
-
-        return secondary
-
-    def _assess_complexity(
-        self,
-        requirement: Requirement,
-        secondary_intents: List[str]
-    ) -> str:
-        """
-        评估任务复杂度，用于指导 Prompt 是否需要拆解。
-        """
-
-        # 显式多意图
-        if len(secondary_intents) >= 2:
-            return "high"
-
-        # 设计类任务通常不简单
-        if requirement.stage == "design":
-            return "high"
-
-        # 实体和约束较多
-        if len(requirement.entities) >= 4 or len(requirement.constraints) >= 2:
-            return "medium"
-
-        return "low"
-
-    def _extract_key_decisions(
-        self,
-        requirement: Requirement,
-        primary_intent: str
-    ) -> List[str]:
-        """
-        提取关键决策点。
-        """
-
-        decisions = []
-
-        if primary_intent == "design":
-            decisions.append("是否需要进行领域建模")
-            decisions.append("结构是否需要考虑未来扩展")
-
-        if requirement.non_functional:
-            decisions.append("非功能性需求如何影响设计")
-
-        return decisions
-
-    def _identify_risks(
-        self,
-        requirement: Requirement,
-        primary_intent: str
-    ) -> List[str]:
-        """
-        识别潜在风险。
-        """
-
-        risks = []
-
-        if not requirement.entities:
-            risks.append("缺乏明确的业务实体描述")
-
-        if primary_intent == "design":
-            risks.append("设计结果一旦落地修改成本较高")
-
-        if requirement.constraints:
-            risks.append("约束条件可能限制方案灵活性")
-
-        return risks
-
-    def _build_assumptions(self, requirement: Requirement) -> List[str]:
-        """
-        构建系统默认接受的前提条件。
-        """
-
-        assumptions = []
-
-        if requirement.domain:
-            assumptions.append(f"领域为 {requirement.domain}")
-
-        if requirement.stage:
-            assumptions.append(f"当前阶段为 {requirement.stage}")
-
-        return assumptions

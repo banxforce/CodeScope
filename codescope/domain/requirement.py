@@ -1,5 +1,6 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from typing import List, Optional
+import json
 
 '''
 Requirement：需求结构化结果对象
@@ -78,3 +79,14 @@ class Requirement:
         Phase5 可以把它作为 反问澄清模板的输入
     '''
     assumptions: List[str]
+
+    def to_json(self) -> str:
+        """将Requirement对象转换为JSON字符串"""
+        # 使用dataclasses.asdict将数据类转换为字典
+        data = asdict(self)
+        # 处理特殊类型（如果需要）
+        return json.dumps(data, ensure_ascii=False, indent=2)
+
+    def to_dict(self) -> dict:
+        """将Requirement对象转换为字典"""
+        return asdict(self)
