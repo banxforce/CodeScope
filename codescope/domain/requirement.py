@@ -14,6 +14,8 @@ Requirement：需求结构化结果对象
 - 字段可为空（null / 空数组），但不可编造
 - 所有信息必须可在用户输入中直接或明确推导得到
 '''
+
+
 @dataclass
 class Requirement:
     # 所属业务领域（如：订单、会议、用户、支付等）
@@ -50,3 +52,29 @@ class Requirement:
     # 如：对风险敏感、偏好稳定方案、追求快速交付等
     # 仅在表达明确时使用
     implicit_signals: List[str]
+
+    '''
+    LLM 对“当前 Requirement 结构是否准确反映用户真实意图”的自评
+    < 0.6 → 阻断流程，要求澄清
+    0.6 ~ 0.8 → 继续，但 Planner 保守
+    0.8 → 正常自动编排
+    '''
+    confidence: float  # 0.0 ~ 1.0
+
+    '''
+    结构化风险说明
+    定义：codescope/domain/enums/requirement_warning.py
+    '''
+    warnings: List[str]
+
+    '''
+    隐式假设
+    示例：
+        “假设这是一个后端系统”
+        “假设使用 MySQL 而非 PostgreSQL”
+        “假设是面向内部系统而非对外产品”
+    作用：
+        Review 阶段人可以快速判断“是不是你自己脑补的”
+        Phase5 可以把它作为 反问澄清模板的输入
+    '''
+    assumptions: List[str]

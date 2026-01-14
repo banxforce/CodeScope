@@ -1,3 +1,33 @@
+## Phase 4
+
+### Phase 4 Goal（建议版本）
+
+> Phase 4 aims to integrate LLM into the core semantic pipeline, enabling:
+> - LLM-driven intent analysis
+> - Structured requirement decomposition
+> - Deterministic, reviewable execution planning
+> - Without yet executing retrieval or final answer generation.
+
+---
+
+### warning 的判定语义
+
+| Warning                   | 触发语义                   |
+| ------------------------- | ---------------------- |
+| MULTIPLE_INTENTS          | 一个输入中存在两个及以上可独立执行的核心目标 |
+| CORE_INTENT_WEAK          | 无法用一句动词+对象准确概括核心意图     |
+| AMBIGUOUS_SCOPE           | 范围边界（全量 / 部分 / 某模块）不明确 |
+| UNCLEAR_TARGET            | 目标系统 / 目标对象不清晰         |
+| MISSING_KEY_ENTITY        | 执行意图所需的关键实体缺失          |
+| UNKNOWN_ENTITY            | 出现无法识别或无法归类的实体         |
+| OPERATION_UNCLEAR         | 行为动词模糊（如“处理一下”“优化下”）   |
+| CONSTRAINT_MISSING        | 明显需要约束但用户未给出           |
+| NON_FUNCTIONAL_UNCLEAR    | 明显涉及性能/安全/稳定性但未明确      |
+| DOMAIN_UNCERTAIN          | 无法确定业务/技术领域            |
+| STAGE_UNCERTAIN           | 需求所处阶段（设计/开发/排错等）不清    |
+| IMPLICIT_ASSUMPTION_HEAVY | 依赖多个未明说的前提假设           |
+
+
 ## README.md（Phase 3 更新内容）
 
 ### Phase 3：Intent Reasoning & Prompt Planning ✅
