@@ -37,7 +37,7 @@ Requirement(
     warnings=['AMBIGUOUS_SCOPE', 'NON_FUNCTIONAL_UNCLEAR'],
     assumptions=['用户表存在于某个数据库系统中', '存在需要优化的具体查询']
 )
-````
+```
 
 ##### Warning 判定语义
 

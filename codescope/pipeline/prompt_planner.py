@@ -4,8 +4,8 @@ from dataclasses import asdict
 
 from codescope.domain.requirement import Requirement
 from codescope.domain.intent_analysis import IntentAnalysis
-from codescope.domain.prompt_plan import PromptPlan
-from codescope.domain.prompt_step import PromptStep
+from codescope.domain.agent_mode.prompt_plan import PromptPlan
+from codescope.domain.agent_mode.prompt_step import PromptStep
 from codescope.prompt.system_templates import PROMPT_PLANNER_SYSTEM_PROMPT_CN
 
 class DrivenPromptPlannerLLM:
