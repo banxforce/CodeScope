@@ -73,3 +73,9 @@ docs
 
 # idea
 .idea
+
+# 测试
+test
+
+# 环境变量
+.env

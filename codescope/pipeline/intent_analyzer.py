@@ -15,7 +15,7 @@ import json
 """
 
 
-class LLMIntentAnalyzer:
+class IntentAnalyzer:
 
     def __init__(self, llm: LLMClient):
         self.llm = llm

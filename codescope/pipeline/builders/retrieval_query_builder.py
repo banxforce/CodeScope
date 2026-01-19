@@ -11,8 +11,10 @@ RetrievalQueryBuilder
 from uuid import uuid4
 from typing import List
 
-from domain.semantic import SemanticTask
-from domain.retrieval import RetrievalQuery
+from codescope.domain.semantic_models import (
+    SemanticTask,
+    RetrievalQuery,
+)
 
 
 class RetrievalQueryBuilder:

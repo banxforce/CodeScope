@@ -1,53 +1,71 @@
+﻿from codescope.pipeline.semantic_execution_pipeline import SemanticExecutionPipeline
+from codescope.pipeline.requirement_parser import RequirementParser
+from codescope.pipeline.intent_analyzer import IntentAnalyzer
+from codescope.pipeline.builders.semantic_task_builder import SemanticTaskBuilder
+from codescope.pipeline.builders.retrieval_query_builder import RetrievalQueryBuilder
+from codescope.pipeline.builders.generation_input_builder import GenerationInputBuilder
+from codescope.retriever.base import BaseRetriever
 from codescope.config.settings import settings
 from codescope.llm.openai_like import OpenAILikeClient
-from codescope.pipeline.intent_analyzer import LLMIntentAnalyzer
-from codescope.pipeline.prompt_planner import DrivenPromptPlannerLLM
-from codescope.pipeline.requirement_parser import RequirementParserLLM
-from codescope.utils.logger import get_logger
 
-logger = get_logger("codescope.main")
+"""
+Phase 5 入口（MVP）
+
+职责：
+- 以最小可运行方式串起 Phase 5 SemanticExecutionPipeline
+- 不涉及 Prompt / LLM / 生成
+- 仅验证：raw_text → GenerationInput 是否跑通
+"""
+
+
+class DummyRetriever(BaseRetriever):
+    """
+    Phase 5 用的假 Retriever
+    只用于验证 Pipeline 结构是否闭合
+    """
+
+    def retrieve(self, query):
+        from codescope.domain.semantic_models import RetrievalResult, RetrievedChunk
+
+        return RetrievalResult(
+            query_id=query.query_id,
+            chunks=[
+                RetrievedChunk(
+                    source_id="dummy",
+                    source_type="doc",
+                    content="This is a dummy retrieval result for Phase 5.",
+                    metadata={},
+                )
+            ],
+            confidence=0.5,
+        )
 
 
 def main():
-    logger.info("CodeScope Phase 4 启动")
-
-    # 把用户表的查询性能优化一下，最好快一点
-    user_input = input("请输入需求描述：").strip()
-    if not user_input:
-        logger.warning("用户输入为空，流程终止")
-        return
-
-    # 1. 初始化 LLM Client
     llm_client = OpenAILikeClient(
         api_key=settings.llm_api_key,
         base_url=settings.llm_base_url,
         model=settings.llm_model,
     )
 
-    # 2. Requirement 语义解析（LLM 驱动）
-    parser = RequirementParserLLM(llm_client)
-    requirement = parser.parse(user_input)
+    pipeline = SemanticExecutionPipeline(
+        requirement_parser=RequirementParser(llm_client),
+        intent_analyzer=IntentAnalyzer(llm_client),
+        semantic_task_builder=SemanticTaskBuilder(),
+        retrieval_query_builder=RetrievalQueryBuilder(),
+        retriever=DummyRetriever(),
+        generation_input_builder=GenerationInputBuilder(),
+    )
+    raw_text = "请分析用户登录模块的设计，并说明主要职责。"
 
-    print("\n=== Requirement ===")
-    print(requirement)
+    generation_input = pipeline.run(raw_text)
 
-    # 3. Intent 分析（仍可先用规则 / 半 LLM）
-    analyzer = LLMIntentAnalyzer(llm_client)
-    intent = analyzer.analyze(requirement)
-
-    print("\n=== IntentAnalysis ===")
-    print(intent)
-
-    # 4. Prompt 规划（Phase 4 可仍是确定性）
-    planner = DrivenPromptPlannerLLM(llm_client)
-    plan = planner.plan(requirement, intent)
-
-    print("\n=== PromptPlan ===")
-    print(plan)
-
-    print("\n=== Steps ===")
-    for step in plan.steps:
-        print(f"- {step.step_id}: {step.purpose}")
+    # Phase 5 的“成功标准”：能稳定打印这些内容
+    print("=== Phase 5 Pipeline Result ===")
+    print("Task ID:", generation_input.task.task_id)
+    print("Intent:", generation_input.task.intent)
+    print("Entities:", [e.name for e in generation_input.task.entities])
+    print("Retrieved Chunks:", len(generation_input.retrieval_result.chunks))
 
 
 if __name__ == "__main__":

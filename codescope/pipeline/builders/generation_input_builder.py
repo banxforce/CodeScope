@@ -8,9 +8,11 @@ GenerationInputBuilder
 - 隔离语义执行与生成实现
 """
 
-from domain.semantic import SemanticTask
-from domain.retrieval import RetrievalResult
-from domain.generation import GenerationInput
+from codescope.domain.semantic_models import (
+    SemanticTask,
+    RetrievalResult,
+    GenerationInput,
+)
 
 
 class GenerationInputBuilder:

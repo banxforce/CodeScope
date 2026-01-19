@@ -9,7 +9,7 @@ from codescope.prompt.system_templates import REQUIREMENT_SYSTEM_PROMPT_CN
 logger = logging.getLogger(__name__)
 
 
-class RequirementParserLLM:
+class RequirementParser:
     """
     使用 LLM 将自然语言需求解析为 Requirement 对象。
     """
