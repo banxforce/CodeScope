@@ -1,5 +1,5 @@
 from uuid import uuid4
-from typing import List
+from typing import List,Dict, Any
 
 from codescope.domain.intent_analysis import IntentAnalysis
 from codescope.domain.semantic_models import (
@@ -9,83 +9,131 @@ from codescope.domain.semantic_models import (
     Constraint,
     OutputSpec,
 )
+from codescope.llm.client import LLMClient
+from codescope.prompt.semantic_task_prompt import SEMANTIC_TASK_PROMPT_CN
+import json
+
 
 class SemanticTaskBuilder:
     """
-    Phase 5 SemanticTask 构建器（最终版）
+    将 IntentAnalysis 转换为 SemanticTask 列表的构建器。
 
-    设计原则：
-    - 严格消费 IntentAnalysis，不引入新语义
-    - 不进行二次推理，不调用 LLM
-    - 所有语义折叠规则显式、可测试
+    设计目标：
+    1. SemanticTask 的生成完全由 LLM 决定
+    2. Builder 只负责 Prompt 组装、调用、解析与强校验
+    3. 失败时可进行一次 JSON 修复重试
     """
 
-    def build(self, intent: IntentAnalysis) -> SemanticTask:
-        """
-        IntentAnalysis → SemanticTask
-        """
+    def __init__(self, llm: LLMClient):
+        self.llm = llm
 
-        task_id = f"task-{uuid4().hex[:8]}"
+    def build(self, intent: IntentAnalysis) -> List[SemanticTask]:
+        prompt = self._build_prompt(intent)
 
-        # 主意图直接映射
-        task_intent = intent.primary_intent
-
-        # Phase 5 任务类型规则化映射（保守、可预测）
-        task_type = "analysis"
-        if intent.complexity_level in ("low", "medium"):
-            task_type = "explanation"
-        if intent.complexity_level in ("high", "very_high"):
-            task_type = "analysis"
-
-        # Phase 5 不主动生成领域实体
-        entities: List[EntityRef] = []
-
-        # secondary_intents → 补充操作
-        operations: List[Operation] = [
-            Operation(
-                action="generate",
-                target_entity=None,
-                parameters={
-                    "intent": intent.primary_intent
-                },
-            )
-        ]
-
-        for sec in intent.secondary_intents:
-            operations.append(
-                Operation(
-                    action="supplement",
-                    target_entity=None,
-                    parameters={"intent": sec},
-                )
-            )
-
-        # risks → soft constraints
-        constraints: List[Constraint] = [
-            Constraint(rule=risk, level="soft")
-            for risk in intent.risks
-        ]
-
-        # assumptions → assumption constraints（不丢失语义）
-        constraints.extend(
-            Constraint(rule=assumption, level="assumption")
-            for assumption in intent.assumptions
+        output = self.llm.complete(
+            system_prompt=SEMANTIC_TASK_PROMPT_CN,
+            user_prompt=prompt,
+            temperature=0.0,
         )
 
-        # 输出规范折叠
+        try:
+            return self._parse_output(output)
+        except Exception as e:
+            logger.warning("SemanticTask 返回解析失败，尝试进行 JSON 修复重试: %s", e)
+
+            retry_output = self.llm.complete(
+                system_prompt=SEMANTIC_TASK_PROMPT_CN
+                              + "\n\n之前的输出是无效的 JSON。请仅返回一个严格符合 SemanticTask 结构的有效 JSON 数组。",
+                user_prompt=prompt,
+                temperature=0.0,
+            )
+            try:
+                return self._parse_output(retry_output)
+            except Exception as e:
+                logger.error("SemanticTask 返回解析又又又失败了，我没招了")
+
+    # =========================
+    # Prompt 构建
+    # =========================
+
+    def _build_prompt(self, intent: IntentAnalysis) -> str:
+        return f"""
+输入 IntentAnalysis 如下：
+
+{self._intent_to_json(intent)}
+
+请根据以上 IntentAnalysis，
+构建一个或多个 SemanticTask，
+并仅以 JSON 数组形式返回结果。
+"""
+
+    def _intent_to_json(self, intent: IntentAnalysis) -> str:
+        return json.dumps(
+            {
+                "primary_intent": intent.primary_intent,
+                "secondary_intents": intent.secondary_intents,
+                "complexity_level": intent.complexity_level,
+                "key_decisions": intent.key_decisions,
+                "risks": intent.risks,
+                "assumptions": intent.assumptions,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+
+    # =========================
+    # 输出解析（强结构校验）
+    # =========================
+
+    def _parse_output(self, output: str) -> List[SemanticTask]:
+        data = json.loads(output)
+        if not isinstance(data, list):
+            raise ValueError("SemanticTask 输出必须是 JSON 数组")
+
+        tasks: List[SemanticTask] = []
+        for item in data:
+            tasks.append(self._parse_task(item))
+
+        return tasks
+
+    def _parse_task(self, data: Dict[str, Any]) -> SemanticTask:
+        entities = [
+            EntityRef(
+                entity_type=e["entity_type"],
+                name=e["name"],
+                identifiers=e.get("identifiers", {}),
+            )
+            for e in data.get("entities", [])
+        ]
+
+        operations = [
+            Operation(
+                action=o["action"],
+                target_entity=o.get("target_entity"),
+                parameters=o.get("parameters", {}),
+            )
+            for o in data.get("operations", [])
+        ]
+
+        constraints = [
+            Constraint(
+                rule=c["rule"],
+                level=c["level"],
+            )
+            for c in data.get("constraints", [])
+        ]
+
+        output_spec_data = data["output_spec"]
         output_spec = OutputSpec(
-            output_type="text",
+            output_type=output_spec_data["output_type"],
             schema=None,
-            quality_requirements=[
-                f"复杂度等级: {intent.complexity_level}",
-                *intent.key_decisions,
-            ],
+            quality_requirements=output_spec_data.get("quality_requirements", []),
         )
 
         return SemanticTask(
-            task_id=task_id,
-            intent=task_intent,
-            task_type=task_type,
+            task_id=data["task_id"],
+            intent=data["intent"],
+            task_type=data["task_type"],
             entities=entities,
             operations=operations,
             constraints=constraints,

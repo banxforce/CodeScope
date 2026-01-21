@@ -13,7 +13,7 @@ Phase 5 Semantic Execution Pipeline
 - 只消费 Phase 4 的稳定输出
 """
 
-from typing import Any
+from typing import Any, List
 
 from codescope.domain.requirement import Requirement
 from codescope.domain.intent_analysis import IntentAnalysis
@@ -24,6 +24,7 @@ from codescope.domain.semantic_models import (
     RetrievalResult,
 )
 from codescope.utils.logger import get_logger
+import json
 
 
 class SemanticExecutionPipeline:
@@ -89,46 +90,64 @@ class SemanticExecutionPipeline:
         # 1. Raw Text → Requirement
         requirement: Requirement = self.requirement_parser.parse(raw_text)
 
-        self.logger.info(f"requirement: {requirement}")
+        self.logger.info(f"======================== Requirement ===========================")
+        self.logger.info(f"requirement: {self.format_for_logging(requirement)}")
 
         # 2. Requirement → IntentAnalysis
         intent_analysis: IntentAnalysis = (
             self.intent_analyzer.analyze(requirement)
         )
 
-        self.logger.info(f"intent_analysis: {intent_analysis}")
+        self.logger.info(f"======================== intent_analysis ===========================")
+        self.logger.info(f"intent_analysis: {self.format_for_logging(intent_analysis)}")
 
         # ========= Phase 5：执行层（确定性） =========
 
         # 3. IntentAnalysis → SemanticTask
-        semantic_task: SemanticTask = (
-            self.semantic_task_builder.build(intent_analysis)
-        )
+        # 使用类型注释而不是类型注解
+        semantic_tasks = self.semantic_task_builder.build(intent_analysis)
 
-        self.logger.info(f"semantic_task: {semantic_task}")
+        self.logger.info(f"======================== semantic_task ===========================")
+        self.logger.info(f"Found {len(semantic_tasks)} semantic tasks")
 
-        # 4. SemanticTask → RetrievalQuery
-        retrieval_query: RetrievalQuery = (
-            self.retrieval_query_builder.build(semantic_task)
-        )
+        for i, task in enumerate(semantic_tasks):
+            self.logger.info(f"\n=== Semantic Task {i + 1} ===")
+            self.logger.info(f"task: {self.format_for_logging(task)}")
 
-        self.logger.info(f"retrieval_query: {retrieval_query}")
+        # # 4. SemanticTask → RetrievalQuery
+        # retrieval_query: RetrievalQuery = (
+        #     self.retrieval_query_builder.build(semantic_task)
+        # )
+        #
+        # self.logger.info(f"retrieval_query: {retrieval_query}")
+        #
+        # # 5. RetrievalQuery → RetrievalResult
+        # retrieval_result: RetrievalResult = (
+        #     self.retriever.retrieve(retrieval_query)
+        # )
+        #
+        # self.logger.info(f"retrieval_result: {retrieval_result}")
+        #
+        # # 6. SemanticTask + RetrievalResult → GenerationInput
+        # generation_input: GenerationInput = (
+        #     self.generation_input_builder.build(
+        #         semantic_task=semantic_task,
+        #         retrieval_result=retrieval_result,
+        #     )
+        # )
+        #
+        # self.logger.info(f"generation_input: {generation_input}")
 
-        # 5. RetrievalQuery → RetrievalResult
-        retrieval_result: RetrievalResult = (
-            self.retriever.retrieve(retrieval_query)
-        )
+        return None
 
-        self.logger.info(f"retrieval_result: {retrieval_result}")
-
-        # 6. SemanticTask + RetrievalResult → GenerationInput
-        generation_input: GenerationInput = (
-            self.generation_input_builder.build(
-                semantic_task=semantic_task,
-                retrieval_result=retrieval_result,
-            )
-        )
-
-        self.logger.info(f"generation_input: {generation_input}")
-
-        return generation_input
+    @staticmethod
+    def format_for_logging(obj):
+        """格式化对象用于日志记录"""
+        if hasattr(obj, 'model_dump'):
+            return json.dumps(obj.model_dump(), indent=2, ensure_ascii=False)
+        elif hasattr(obj, 'dict'):
+            return json.dumps(obj.dict(), indent=2, ensure_ascii=False)
+        elif isinstance(obj, (list, dict)):
+            return json.dumps(obj, indent=2, ensure_ascii=False)
+        else:
+            return str(obj)
