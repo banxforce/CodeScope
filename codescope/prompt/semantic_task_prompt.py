@@ -79,7 +79,7 @@ SemanticTask 包含以下字段（不可新增、不可缺失）：
 
 - output_type : string
 - schema : object | null
-- quality_requirements : string
+- quality_requirements : string[]
 
 ────────────────────
 【字段取值约束（强制）】
