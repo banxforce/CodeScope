@@ -89,7 +89,7 @@ SemanticTask 包含以下字段（不可新增、不可缺失）：
 - task_type：只能从以下值中选择：code_search, doc_query, design, analysis, explanation
 - entity_type：只能从以下值中选择：module, class, function, api, document, concept
 - entities：只能使用 IntentAnalysis 中显式或隐式提到的实体
-- action：只能从以下值中选择：read, search, 
+- action：只能从以下值中选择：read, search, analyze, compare, summarize
 - target_entity：必须对应 entities 中的 name（如适用）
 - parameters：必须是结构化信息，不能是自然语言描述
 - constraints.rule：使用陈述句
