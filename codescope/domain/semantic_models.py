@@ -97,21 +97,40 @@ class RetrievalQuery:
 
 @dataclass
 class RetrievedChunk:
-    """检索得到的最小信息单元。"""
+    """检索得到的最小证据单元。"""
 
-    source_id: str
-    source_type: Literal["code", "doc"]
+    chunk_id: str  # 稳定引用 ID（必须）
+    source_id: str  # 文档 / 文件 / repo
+    source_type: Literal["code", "doc", "api"]
     content: str
+
+    relevance_score: float  # 0.0 ~ 1.0
     metadata: Dict[str, Any]
 
 
 @dataclass
 class RetrievalResult:
-    """检索模块的标准输出结果。"""
+    """一次检索动作的结构化结果。"""
 
     query_id: str
     chunks: List[RetrievedChunk]
-    confidence: float
+
+    confidence: float  # 对本次结果整体可信度判断
+    total_hits: int  # 原始命中数量（可选但强烈建议）
+
+
+@dataclass
+class ChunkSource:
+    source_id: str
+    source_type: Literal["code", "doc", "api"]
+    uri: Optional[str]
+    version: Optional[str]
+
+
+@dataclass
+class ChunkAnnotation:
+    reason: str  # 为什么被选中
+    related_entities: List[EntityRef]
 
 
 # =========================
