@@ -22,7 +22,7 @@ class RetrievalQueryBuilder:
         # 1. 只要出现 search/read 操作，就认为是可检索任务
         retrieval_ops = [
             op for op in task.operations
-            if op.action in ("search", "read")
+            if op.action in ("research", "read")
         ]
 
         if not retrieval_ops:

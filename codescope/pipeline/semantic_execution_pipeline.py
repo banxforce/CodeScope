@@ -6,6 +6,8 @@ from codescope.pipeline.builders.semantic_task_builder import SemanticTaskBuilde
 from codescope.pipeline.intent_analyzer import IntentAnalyzer
 from codescope.pipeline.requirement_parser import RequirementParser
 from codescope.pipeline.validators.semantic_task_validator import SemanticTaskValidator
+from codescope.pipeline.validators.retrieval_query_validator import RetrievalQueryValidator
+from codescope.domain.semantic_models import RetrievalQuery
 
 
 class SemanticExecutionPipeline:
@@ -16,8 +18,9 @@ class SemanticExecutionPipeline:
             requirement_parser: RequirementParser,
             intent_analyzer: "IntentAnalyzer",
             task_builder: "SemanticTaskBuilder",
-            task_validator: "SemanticTaskValidator",
             query_builder: "RetrievalQueryBuilder",
+            task_validator: "SemanticTaskValidator",
+            retrieval_query_validator: "RetrievalQueryValidator",
     ):
         self.llm = llm
         self.requirement_parser = requirement_parser
@@ -25,8 +28,9 @@ class SemanticExecutionPipeline:
         self.task_builder = task_builder
         self.task_validator = task_validator
         self.query_builder = query_builder
+        self.retrieval_query_validator = retrieval_query_validator
 
-    def run(self, raw_text: str) -> None:
+    def run(self, raw_text: str) -> List[RetrievalQuery]:
         print("\n================ Phase 6 Dry Run ================\n")
         print("【Raw text】")
         print(raw_text)
@@ -52,10 +56,16 @@ class SemanticExecutionPipeline:
 
         # 5. RetrievalQuery 构建
         queries = self.query_builder.build(tasks)
-        print("\n【RetrievalQueries】")
+        print("\n【RetrievalQueries（Before Validation）】")
         print(self._pretty(queries))
 
+        # 6. RetrievalQueries 校验
+        self.retrieval_query_validator.validate_all(queries)
+        print("\n【RetrievalQueries Validation】✓ PASSED")
+
         print("\n================ Dry Run Finished ================\n")
+
+        return queries
 
     def _pretty(self, obj) -> str:
         """

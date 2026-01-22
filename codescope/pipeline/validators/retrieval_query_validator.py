@@ -11,6 +11,13 @@ class RetrievalQueryValidator:
 
     ALLOWED_SCOPES = {"code", "doc", "api"}
 
+    def validate_all(self, queries: List[RetrievalQuery]) -> None:
+        if not queries:
+            raise RetrievalQueryValidationError("RetrievalQuery 列表不能为空")
+
+        for query in queries:
+            self.validate(query)
+
     def validate(self, query: RetrievalQuery) -> None:
         self._validate_basic_fields(query)
         self._validate_scope(query)
