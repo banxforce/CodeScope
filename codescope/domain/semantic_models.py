@@ -168,3 +168,13 @@ __all__ = [
     "GenerationInput",
     "GenerationConfig",
 ]
+
+@dataclass
+class GenerationResult:
+    """
+    LLM 生成阶段的标准输出
+    """
+    task_id: str
+    content: Any              # str / dict / code 等
+    used_chunks: List[str]    # chunk_id 列表，用于 trace
+    confidence: float         # 生成置信度（可粗略）

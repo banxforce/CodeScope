@@ -1,5 +1,7 @@
 import requests
 from codescope.llm.client import LLMClient
+from .client import LLMClient
+
 
 class OpenAILikeClient(LLMClient):
 
@@ -9,13 +11,12 @@ class OpenAILikeClient(LLMClient):
         self.model = model
 
     def complete(
-        self,
-        *,
-        system_prompt: str,
-        user_prompt: str,
-        temperature: float = 0.0,
+            self,
+            *,
+            system_prompt: str,
+            user_prompt: str,
+            temperature: float = 0.0,
     ) -> str:
-
         url = f"{self.base_url}/v1/chat/completions"
 
         payload = {
@@ -37,3 +38,14 @@ class OpenAILikeClient(LLMClient):
 
         data = resp.json()
         return data["choices"][0]["message"]["content"]
+
+    # ✅ 新增：统一的 generate 接口
+    def generate(self, prompt: str) -> str:
+        """
+        对外统一生成接口，供 GenerationExecutor 调用
+        """
+        return self.complete(
+            system_prompt="你是一个严谨、基于证据回答问题的助手。",
+            user_prompt=prompt,
+            temperature=0.0,
+        )

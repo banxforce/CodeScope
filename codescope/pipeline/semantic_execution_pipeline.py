@@ -15,20 +15,22 @@ class SemanticExecutionPipeline:
     def __init__(
             self,
             llm: "LLMClient",
-            requirement_parser: RequirementParser,
-            intent_analyzer: "IntentAnalyzer",
-            task_builder: "SemanticTaskBuilder",
-            query_builder: "RetrievalQueryBuilder",
-            task_validator: "SemanticTaskValidator",
-            retrieval_query_validator: "RetrievalQueryValidator",
     ):
-        self.llm = llm
-        self.requirement_parser = requirement_parser
-        self.intent_analyzer = intent_analyzer
-        self.task_builder = task_builder
-        self.task_validator = task_validator
-        self.query_builder = query_builder
-        self.retrieval_query_validator = retrieval_query_validator
+        """
+        初始化语义执行管道
+
+        Args:
+            llm: LLM客户端实例，用于所有需要LLM的组件
+        """
+        # 一次性初始化所有LLM依赖的组件
+        self.requirement_parser = RequirementParser(llm)
+        self.intent_analyzer = IntentAnalyzer(llm)
+        self.task_builder = SemanticTaskBuilder(llm)
+
+        # 初始化不依赖LLM的组件
+        self.query_builder = RetrievalQueryBuilder()
+        self.task_validator = SemanticTaskValidator()
+        self.retrieval_query_validator = RetrievalQueryValidator()
 
     def run(self, raw_text: str) -> List[RetrievalQuery]:
         print("\n================ Phase 6 Dry Run ================\n")
@@ -52,7 +54,7 @@ class SemanticExecutionPipeline:
 
         # 4. SemanticTask 校验
         self.task_validator.validate_all(tasks)
-        print("\n【SemanticTasks Validation】✓ PASSED")
+        print("\n【SemanticTasks Validation】PASSED")
 
         # 5. RetrievalQuery 构建
         queries = self.query_builder.build(tasks)
@@ -61,7 +63,7 @@ class SemanticExecutionPipeline:
 
         # 6. RetrievalQueries 校验
         self.retrieval_query_validator.validate_all(queries)
-        print("\n【RetrievalQueries Validation】✓ PASSED")
+        print("\n【RetrievalQueries Validation】PASSED")
 
         print("\n================ Dry Run Finished ================\n")
 

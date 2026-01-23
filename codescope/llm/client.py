@@ -19,3 +19,7 @@ class LLMClient(ABC):
         temperature: float = 0.0,
     ) -> str:
         pass
+
+    @abstractmethod
+    def generate(self, prompt: str) -> str:
+        pass

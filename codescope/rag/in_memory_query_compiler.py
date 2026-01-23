@@ -1,6 +1,6 @@
 import uuid
 from typing import Any, List
-from .query_compiler import QueryCompiler
+from codescope.rag.base.query_compiler import QueryCompiler
 from codescope.domain.semantic_models import (
     RetrievalQuery,
     RetrievalResult,
